@@ -468,7 +468,7 @@ if __name__ == "__main__":
         ground_truth_file = f"../full_dataset/{system}/{system}_full.log_structured.csv"
         file_path = f"{out_path}/{str(regex_sample)}.csv"
         sorted_file = f"{out_path}/{str(regex_sample)}_sorted.csv"
-        GA, PA, event_count = accuracy.evaluate(
+        GA, PA, event_count = accuracy.evaluate_result(
             file_path, ground_truth_file, sorted_file, save_sorted=True
         )
         print("==================", flush=True)
