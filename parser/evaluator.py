@@ -39,47 +39,66 @@ benchmark_settings = {
         "log_file": "HDFS/HDFS_2k.log",
         "log_format": "<Date> <Time> <Pid> <Level> <Component>: <Content>",
         "regex": [r"blk_-?\d+", r"(\d+\.){3}\d+(:\d+)?"],
+        "st": 0.5,
+        "depth": 4,
     },
     "Hadoop": {
         "log_file": "Hadoop/Hadoop_2k.log",
         "log_format": "<Date> <Time> <Level> \[<Process>\] <Component>: <Content>",
         "regex": [r"(\d+\.){3}\d+"],
+        "st": 0.5,
+        "depth": 4,
     },
     "Spark": {
         "log_file": "Spark/Spark_2k.log",
         "log_format": "<Date> <Time> <Level> <Component>: <Content>",
         "regex": [r"(\d+\.){3}\d+", r"\b[KGTM]?B\b", r"([\w-]+\.){2,}[\w-]+"],
-        "regex": [],
+        "st": 0.5,
+        "depth": 4,
     },
     "Zookeeper": {
         "log_file": "Zookeeper/Zookeeper_2k.log",
         "log_format": "<Date> <Time> - <Level>  \[<Node>:<Component>@<Id>\] - <Content>",
         "regex": [r"(/|)(\d+\.){3}\d+(:\d+)?"],
+        "st": 0.5,
+        "depth": 4,
     },
     "BGL": {
         "log_file": "BGL/BGL_2k.log",
         "log_format": "<Label> <Timestamp> <Date> <Node> <Time> <NodeRepeat> <Type> <Component> <Level> <Content>",
         "regex": [r"core\.\d+"],
+        "st": 0.5,
+        "depth": 4,
     },
     "HPC": {
         "log_file": "HPC/HPC_2k.log",
         "log_format": "<LogId> <Node> <Component> <State> <Time> <Flag> <Content>",
         "regex": [r"=\d+"],
+        "st": 0.5,
+        "depth": 4,
     },
     "Thunderbird": {
         "log_file": "Thunderbird/Thunderbird_2k.log",
         "log_format": "<Label> <Timestamp> <Date> <User> <Month> <Day> <Time> <Location> <Component>(\[<PID>\])?: <Content>",
         "regex": [r"(\d+\.){3}\d+"],
+        "st": 0.5,
+        "depth": 4,
+        # "st": 0.2,
+        # "depth": 3,
     },
     "Windows": {
         "log_file": "Windows/Windows_2k.log",
         "log_format": "<Date> <Time>, <Level>                  <Component>    <Content>",
         "regex": [r"0x.*?\s"],
+        "st": 0.7,
+        "depth": 5,
     },
     "Linux": {
         "log_file": "Linux/Linux_2k.log",
         "log_format": "<Month> <Date> <Time> <Level> <Component>(\[<PID>\])?: <Content>",
         "regex": [r"(\d+\.){3}\d+", r"\d{2}:\d{2}:\d{2}"],
+        "st": 0.39,
+        "depth": 6,
     },
     "Android": {
         "log_file": "Android/Android_2k.log",
@@ -89,16 +108,22 @@ benchmark_settings = {
             r"([\w-]+\.){2,}[\w-]+",
             r"\b(\-?\+?\d+)\b|\b0[Xx][a-fA-F\d]+\b|\b[a-fA-F\d]{4,}\b",
         ],
+        "st": 0.2,
+        "depth": 6,
     },
     "HealthApp": {
         "log_file": "HealthApp/HealthApp_2k.log",
         "log_format": "<Time>\|<Component>\|<Pid>\|<Content>",
         "regex": [],
+        "st": 0.2,
+        "depth": 4,
     },
     "Apache": {
         "log_file": "Apache/Apache_2k.log",
         "log_format": "\[<Time>\] \[<Level>\] <Content>",
         "regex": [r"(\d+\.){3}\d+"],
+        "st": 0.5,
+        "depth": 4,
     },
     "Proxifier": {
         "log_file": "Proxifier/Proxifier_2k.log",
@@ -109,21 +134,29 @@ benchmark_settings = {
             r"\d{2}:\d{2}(:\d{2})*",
             r"[KGTM]B",
         ],
+        "st": 0.6,
+        "depth": 3,
     },
     "OpenSSH": {
         "log_file": "OpenSSH/OpenSSH_2k.log",
         "log_format": "<Date> <Day> <Time> <Component> sshd\[<Pid>\]: <Content>",
         "regex": [r"(\d+\.){3}\d+", r"([\w-]+\.){2,}[\w-]+"],
+        "st": 0.6,
+        "depth": 5,
     },
     "OpenStack": {
         "log_file": "OpenStack/OpenStack_2k.log",
         "log_format": "<Logrecord> <Date> <Time> <Pid> <Level> <Component> \[<ADDR>\] <Content>",
         "regex": [r"((\d+\.){3}\d+,?)+", r"/.+?\s", r"\d+"],
+        "st": 0.5,
+        "depth": 5,
     },
     "Mac": {
         "log_file": "Mac/Mac_2k.log",
         "log_format": "<Month>  <Date> <Time> <User> <Component>\[<PID>\]( \(<Address>\))?: <Content>",
         "regex": [r"([\w-]+\.){2,}[\w-]+"],
+        "st": 0.7,
+        "depth": 6,
     },
 }
 
@@ -388,11 +421,15 @@ if __name__ == "__main__":
             os.makedirs(out_path)
         setting = benchmark_settings[system]
         start_time = datetime.now()
-        Drain_parser1 = grouping.LogParser(
+        Tree_parser1 = grouping.LogParser(
             rex=setting["regex"], depth=setting["depth"], st=setting["st"]
         )
+        # Tree parser with default settings
+        # Tree_parser1 = grouping.LogParser(
+        #     rex=setting["regex"]
+        # )
         logs = read_column_from_csv(log_file)
-        grouped_logs = Drain_parser1.parse(logs)
+        grouped_logs = Tree_parser1.parse(logs)
         groups_dict = group_logs_using_parser(grouped_logs)
         groups_dict = sort_dict_by_content_length(groups_dict)
         print("==================", flush=True)
@@ -421,7 +458,7 @@ if __name__ == "__main__":
             res_list = llama_parser1.parse(groups_dict[eventid], logs_from_group)
             out_file = res_list_to_file(res_list, out_path, regex_sample=regex_sample)
 
-        Drain_parser1.print_time()
+        Tree_parser1.print_time()
         regex_manager1.print_time()
         regex_manager1.print_regex_templates()
         total_time = datetime.now() - start_time
@@ -431,7 +468,7 @@ if __name__ == "__main__":
         ground_truth_file = f"../full_dataset/{system}/{system}_full.log_structured.csv"
         file_path = f"{out_path}/{str(regex_sample)}.csv"
         sorted_file = f"{out_path}/{str(regex_sample)}_sorted.csv"
-        GA, PA, PA_without_wrong_regex, event_count, re_ratio = accuracy.evaluate(
+        GA, PA, event_count = accuracy.evaluate(
             file_path, ground_truth_file, sorted_file, save_sorted=True
         )
         print("==================", flush=True)
@@ -439,7 +476,7 @@ if __name__ == "__main__":
             system,
             total_time,
             llama_parser1.total_time - regex_manager1.total_time,
-            Drain_parser1.total_time,
+            Tree_parser1.total_time,
             regex_manager1.total_time,
             GA,
             PA,
@@ -454,7 +491,7 @@ if __name__ == "__main__":
                 system,
                 total_time,
                 llama_parser1.total_time - regex_manager1.total_time,
-                Drain_parser1.total_time,
+                Tree_parser1.total_time,
                 regex_manager1.total_time,
                 GA,
                 PA,
