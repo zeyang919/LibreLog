@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 import numpy as np
 
@@ -8,44 +9,6 @@ def sort_csv_by_content_order(file1_df, file2_df, to_file, save_sorted=False):
     if save_sorted:
         merged_df.to_csv(to_file, index=False)
     return merged_df
-
-def evaluate_result(predic_file,groundtruth, sorted_file, save_sorted=False,sort=True):
-    df_gtlog = pd.read_csv(
-        groundtruth,  usecols=["Content", "EventId", "EventTemplate"]
-    )
-    print("df_gtlog file loaded! ", flush=True)
-    df_gtlog["EventTemplate_NoSpaces"] = df_gtlog["EventTemplate"].str.replace('\s+', '', regex=True).str.replace(r'\<\*\>', '', regex=True)
-    print("df_gtlog EventTemplate ready to be checked", flush=True)
-    # column_names = ['Content',  'EventTemplate']
-    column_names = ["Content", "RegexTemplate", "EventId"]
-    df_parsedlog = pd.read_csv(predic_file, index_col=False,  usecols=column_names)
-    if sort:
-        df_parsedlog = pd.read_csv(
-            predic_file
-            , usecols=column_names, dtype=str
-        )
-        # print(df_parsedlog)
-        df_parsedlog = sort_csv_by_content_order(df_parsedlog, df_gtlog, sorted_file, save_sorted)
-        print("df_parsedlog sorted! ", flush=True)
-    else:
-        df_parsedlog = pd.read_csv(
-            sorted_file
-            , usecols=column_names, dtype=str
-        )
-        print("df_parsedlog sorted file loaded! ", flush=True)
-    # print("df_parsedlog file loaded! ", flush=True)
-    df_parsedlog["Predict_NoSpaces"] = df_parsedlog['RegexTemplate'].str.replace('\s+', '', regex=True).str.replace(r'\(\.\*\?\)', '', regex=True)
-    print("df_parsedlog ready to be checked! ", flush=True)
-    # df_parsedlog["EventTemplate_NoSpaces"] = df_parsedlog['EventTemplate'].str.replace('\s+', '', regex=True)
-    correctly_parsed_messages = df_parsedlog['Predict_NoSpaces'].eq(df_gtlog['EventTemplate_NoSpaces']).values.sum()
-    PA = float(correctly_parsed_messages) / len(df_parsedlog[['Content']])
-    print(f"PA: {PA}", flush=True)
-    # print(f"PA: {PA}", flush=True)
-    (precision, recall, f_measure, GA) = get_accuracy(df_gtlog["EventTemplate_NoSpaces"],
-                                                               df_parsedlog['Predict_NoSpaces'])
-    print(f"accuracy_GA: {GA}", flush=True)
-    event_count = str(df_parsedlog["Predict_NoSpaces"].nunique())
-    return GA, PA,event_count
 
 def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     series_parsedlog_valuecounts = series_parsedlog.value_counts()
@@ -80,3 +43,91 @@ def get_accuracy(series_groundtruth, series_parsedlog, debug=False):
     accuracy = float(accurate_events) / series_groundtruth.size
     return precision, recall, f_measure, accuracy
 
+def evaluate_result(predic_file, gt_file, sorted_file, save_sorted=False,sort=True):
+    column_names = ["Content", "RegexTemplate", "EventId"]
+    if sort:
+        df_parsedlog = pd.read_csv(
+            predic_file
+            , usecols=column_names, dtype=str
+        )
+        df_gtlog = pd.read_csv(
+            gt_file, usecols=["Content", "EventId", "EventTemplate"], dtype=str
+        )
+        df_parsedlog = sort_csv_by_content_order(df_parsedlog, df_gtlog, sorted_file, save_sorted)
+        print("df_parsedlog sorted! ", flush=True)
+    else:
+        df_parsedlog = pd.read_csv(
+            sorted_file
+            , usecols=column_names, dtype=str
+        )
+        df_gtlog = pd.read_csv(
+            gt_file, usecols=["Content", "EventId", "EventTemplate"], dtype=str
+        )
+        print("df_parsedlog sorted file loaded! ", flush=True)
+    df_parsedlog["RegexTemplate_NoSpaces_NoVar_cleaned"] = df_parsedlog[
+        "RegexTemplate"
+    ].apply(clean_regex_content)
+    print("df_parsedlog RegexTemplate ready to be checked", flush=True)
+    df_gtlog["EventTemplate_NoSpaces_NoVar_cleaned"] = df_gtlog["EventTemplate"].apply(
+        clean_content
+    )
+    print("df_gtlog EventTemplate ready to be checked", flush=True)
+    correctly_parsed_messages = df_parsedlog['RegexTemplate_NoSpaces_NoVar_cleaned'].eq(df_gtlog['EventTemplate_NoSpaces_NoVar_cleaned']).values.sum()
+    PA = float(correctly_parsed_messages) / len(df_parsedlog[['Content']])
+    print(f"PA: {PA}", flush=True)
+    (precision, recall, f_measure, GA) = get_accuracy(
+        df_gtlog["EventId"],df_parsedlog["RegexTemplate_NoSpaces_NoVar_cleaned"]
+    )
+    print(f"GA: {GA}", flush=True)
+    event_count = str(df_parsedlog["RegexTemplate_NoSpaces_NoVar_cleaned"].nunique())
+    return (
+        GA,
+        PA,
+        event_count,
+    )
+    
+def clean_content(content):
+    content = content.replace(",", "")
+    content = content.replace(".", "")
+    segments = content.split(" ")
+    cleaned_segments = ["" if "<*>" in segment else segment for segment in segments]
+    return "".join(cleaned_segments)
+
+def clean_regex_content(content):
+    if pd.isna(content):
+        return ""
+    content = content.replace("</s>", '')
+    pattern = r"\((?:\?P<[^>]+>)?(?:\\.|[^()\\])*?\)"
+    segments = smart_split(content)
+    cleaned_segments = []
+    for segment in segments:
+        if not (re.search(pattern, segment) or re.search(r"^([+\.?()\[\]{}]+)$", segment) or re.search(r'a-z',
+                                                                                                     segment) or re.search(
+            r'a-f', segment) or re.search(
+            r'\\w', segment) or re.search(r'\\d', segment)):
+            cleaned_segments.append(segment)
+    result = "".join(cleaned_segments)
+    if result.startswith("^"):
+        result = result[1:]
+    if result.endswith("$"):
+        result = result[:-1]
+    result = result.replace("\\", "")
+    result = result.replace(".", "")
+    return result
+
+def smart_split(input_string):
+    initial_segments = input_string.split(" ")
+    final_segments = []
+    for segment in initial_segments:
+        if "\\s+" in segment:
+            sub_segments = re.split(r"\\s\+", segment)
+            final_segments.extend(sub_segments)
+        elif "\\s*" in segment:
+            sub_segments = re.split(r"\\s\*", segment)
+            final_segments.extend(sub_segments)
+        elif "\\s" in segment:
+            sub_segments = re.split(r"\\s", segment)
+            final_segments.extend(sub_segments)
+        else:
+            final_segments.append(segment)
+    return final_segments
